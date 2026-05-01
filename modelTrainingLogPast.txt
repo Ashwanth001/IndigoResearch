@@ -1,0 +1,3 @@
+Training complete. Evaluating on test set...
+BEST VAL AUC EPOCH: 94
+TEST METRICS: AUC = 0.8332, P@50 = 0.3774, R@50 = 0.3431

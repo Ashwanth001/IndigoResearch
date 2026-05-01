@@ -1,0 +1,50 @@
+# ─── Generated data artifacts ───────────────────────────────────────────────
+# These are produced by running the pipeline and should NOT be committed.
+# Anyone with trade_data.csv can regenerate them by running the steps in order.
+data/*.pt
+data/*.pkl
+data/*.csv
+
+# Exceptions: keep README and sample schema files if added later
+# !data/README.md
+
+# ─── Raw / downloaded datasets ───────────────────────────────────────────────
+BACIDataset1995/
+BCIIDataset2002/
+WDI_csv/
+BACI_Analysis/
+India_Export_Network/
+India_RCA_Analysis/
+dataPast/
+data/
+
+# ─── Model checkpoints ───────────────────────────────────────────────────────
+checkpoints/
+
+# ─── Python cache ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+catboost_info/
+
+# ─── Environments ────────────────────────────────────────────────────────────
+.env
+.venv
+venv/
+env/
+
+# ─── Jupyter ─────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── Assets ──────────────────────────────────────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+
+# ─── OS noise ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
