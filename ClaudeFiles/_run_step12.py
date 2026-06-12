@@ -400,7 +400,8 @@ def tier_eval12(mdl, pred, samp, pci_dict, dev, k=20):
     df['pci'] = df['pci'].fillna(0.0)
     df['w']   = df['pci'] - df['pci'].min()  # shift to non-negative
     tot_w     = df.loc[df['label'] == 1, 'w'].sum()
-    hit_w     = df.loc[(df['label'] == 1) & (df['score'] >= 0.5), 'w'].sum()
+    df['score_pct'] = df['score'].rank(pct=True)  # normalise to [0,1] so threshold is method-agnostic
+    hit_w     = df.loc[(df['label'] == 1) & (df['score_pct'] >= 0.5), 'w'].sum()
     cwr       = float(hit_w / tot_w) if tot_w > 0 else 0.0
 
     return {'PR-AUC':    round(pr_auc, 4),
@@ -431,10 +432,10 @@ gnn_df.to_csv(os.path.join(DATA_DIR, 'gnn_tiered_results.csv'), index=False)
 # Baseline numbers from oldResearch/data/baseline_tiered_results.csv
 # and oldResearch/data/persistence_tiered_results.csv
 baselines = [
-    ('RCA Persistence',  0.525, 0.510, 0.528, 0.000),
-    ('Density',          0.349, 0.487, 0.434, 0.005),
-    ('ECI',              0.231, 0.146, 0.869, 0.000),
-    ('ECI + Density',    0.349, 0.487, 0.434, 1.000),
+    ('RCA Persistence',  0.525, 0.510, 0.528, 0.3356),
+    ('Density',          0.349, 0.487, 0.434, 0.8575),
+    ('ECI',              0.231, 0.146, 0.869, 0.4637),
+    ('ECI + Density',    0.349, 0.487, 0.434, 0.8575),
 ]
 
 print('\n' + '='*72)
@@ -442,7 +443,7 @@ print(f'  {"Model":<26} {"PR-AUC":>8} {"NDCG@20":>8} {"Prec@20":>8} {"CWR":>8}')
 print('-'*72)
 for name, prauc, ndcg, prec, cwr in baselines:
     print(f'  {name:<26} {prauc:>8.3f} {ndcg:>8.3f} {prec:>8.3f} {cwr:>8.3f}')
-print('  ' + '·'*68)
+print('  ' + '.'*68)
 for label, res in [('GNN-4F  (BACI only) <-', res4), ('GNN-11F (BACI+WDI)  <-', res11)]:
     print(f'  {label:<26} {res["PR-AUC"]:>8.3f} {res["NDCG@20"]:>8.3f} {res["Prec@20"]:>8.3f} {res["CWR"]:>8.3f}')
 print('='*72)

@@ -3,14 +3,11 @@ Step 11A: LLM Product Embeddings — run as standalone script if the notebook ke
 
     python run_step11_embeddings.py
 
-Downloads intfloat/e5-large-v2 (~1.3 GB, cached after first run) and encodes all
-HS6 product descriptions. Saves:
-    data/product_llm_embeddings.pt   — FloatTensor [N_products, 1024], unit-normalised
+Model: FinLang/investopedia_embedding (768-dim, finance-domain fine-tuned on top of BAAI/bge-base-en-v1.5)
+No special prefix required — model encodes sentences directly.
 
-Fixes vs. original:
-  - Uses "passage: " prefix (correct for symmetric product-to-product similarity in e5 models;
-    "query: " is for asymmetric retrieval and compresses all embeddings into a narrow cone)
-  - Enriches each description with its 2-digit HS chapter number for better discrimination
+Saves:
+    data/product_llm_embeddings.pt   — FloatTensor [N_products, 768], unit-normalised
 """
 
 import os, sys
@@ -37,17 +34,12 @@ desc_map = dict(zip(hs_df['code'], hs_df['description']))
 missing  = sum(1 for p in product_list if p not in desc_map)
 print(f'Products missing HS description (fallback = code string): {missing}')
 
-# Build enriched passages: add HS chapter (first 2 digits of zero-padded 6-digit code)
-# "passage: " is the correct e5 prefix for symmetric similarity — NOT "query: "
-def make_passage(code: int, desc: str) -> str:
-    chapter = str(code).zfill(6)[:2]
-    return f"query: HS chapter {chapter} trade product: {desc}"
+# No prefix needed for FinLang/investopedia_embedding
+descriptions = [desc_map.get(p, str(p)) for p in product_list]
 
-prefixed = [make_passage(p, desc_map.get(p, str(p))) for p in product_list]
-
-print('\nExample passages:')
+print(f'\nExample inputs:')
 for p in product_list[:3]:
-    print(f'  {p}: {make_passage(p, desc_map.get(p, str(p)))}')
+    print(f'  {p}: {desc_map.get(p, str(p))}')
 
 # ── 3. Embed ──────────────────────────────────────────────────────────────────
 try:
@@ -58,11 +50,11 @@ except ImportError:
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'\nDevice: {DEVICE}')
-print('Loading intfloat/e5-large-v2 (~1.3 GB, cached after first run)...')
+print('Loading FinLang/finance-embeddings-investopedia (finance-domain, 768-dim)...')
 
-model      = SentenceTransformer('intfloat/e5-large-v2', device=DEVICE)
+model      = SentenceTransformer('FinLang/finance-embeddings-investopedia', device=DEVICE)
 embeddings = model.encode(
-    prefixed,
+    descriptions,
     batch_size=64,
     show_progress_bar=True,
     convert_to_tensor=True,
@@ -98,7 +90,7 @@ sims       = (sample_emb @ sample_emb.T).flatten()
 sims       = sims[sims < 0.9999]  # remove self-pairs
 print(f'\nPairwise similarity distribution (1000-product sample):')
 print(f'  median={np.median(sims):.3f}  mean={np.mean(sims):.3f}  p95={np.percentile(sims, 95):.3f}')
-print(f'  % pairs > 0.70 : {(sims > 0.70).mean()*100:.1f}%  (was 99.0% with "query:" prefix)')
+print(f'  % pairs > 0.70 : {(sims > 0.70).mean()*100:.1f}%')
 print(f'  % pairs > 0.85 : {(sims > 0.85).mean()*100:.1f}%')
 
-print('\n Step 11A complete')
+print('\nStep 11A complete (FinLang/finance-embeddings-investopedia)')
