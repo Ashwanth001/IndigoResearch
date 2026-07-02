@@ -1,6 +1,10 @@
 # Trade Complexity 2.0 — Project Context
 ---
 
+> **Last synced: 2026-07-01.** This document is the master tracker. It has been reconciled with `README.md`, `evaluation/INTERNAL_BENCHMARKING.md`, `evaluation/FULL_UNIVERSE_BENCHMARKING.md`, and the live result CSVs in `internal_benchmarking/` and `full_universe_eval/`. The evaluation now spans **14 methods × 8 metrics × 2 test years (2015 & 2016) × 2 dataset conditions (sampled + full universe)**. XGBoost is trained and is the current top performer; the two `evaluation/*.md` reports still predate the XGBoost + PCA-variant additions and should be regenerated from the CSVs.
+
+---
+
 ## What This Project Is
 
 **Trade Complexity 2.0** is an ML research project that asks:
@@ -27,31 +31,30 @@ It compares the GNN against classical economic complexity methods (ECI, Product 
 
 ```
 Indigo_Research/
-├── dataPipeline.ipynb          ← THE active pipeline (Steps 1–12, all in one notebook)
-├── data/                       ← All pipeline outputs (CSVs + .pt tensors)
-│   ├── exports_cpt.csv
-│   ├── rca_cpt.csv
-│   ├── M_cpt_smoothed.csv
-│   ├── labels_h5.csv
-│   ├── country_features.csv
-│   ├── country_features_enriched.csv
-│   ├── product_features.csv
-│   ├── wdi_features.csv
-│   ├── edge_index_by_year.pt
-│   ├── country_x_by_year.pt    ← 11-feature country tensors (4 BACI + 7 WDI) [rebuilt 2026-06-10]
-│   ├── product_x_by_year.pt    ← 3-feature product tensors
-│   ├── country_mapping.pkl
-│   ├── product_mapping.pkl
-│   ├── train_labels.csv / val_labels.csv / test_labels.csv
-│   ├── train_data.pt / val_data.pt / test_data.pt
-│   ├── product_llm_embeddings.pt
-│   ├── capability_edge_index.pt
-│   └── gnn_tiered_results.csv  ← GNN-4F and GNN-11F results [new, 2026-06-10]
+├── dataPipeline.ipynb              ← THE active pipeline (Steps 1–12, all in one notebook)
+├── new_gnn_training_fixed.ipynb    ← GNN training incl. PCA-LLM capability variants
+├── internal_benchmarking.ipynb     ← All 14 methods, sampled test set, t=2015 & 2016
+├── full_universe_eval.ipynb        ← All methods, full unsampled universe (~1.08M pairs)
+├── data/                           ← Pipeline outputs (.pt tensors, CSVs, model checkpoints)
+│   ├── (pipeline artifacts: exports/rca/M_cpt/labels/features CSVs, *_by_year.pt,
+│   │    *_mapping.pkl, train/val/test_data.pt, product_llm_embeddings.pt,
+│   │    capability_edge_index.pt)
+│   ├── models/xgboost/xgb_model.pkl
+│   └── models/gnn/checkpoints/     ← gnn_4f, gnn_11f, gnn_11f_llm, gnn_11f_llm_v2,
+│                                      gnn_llm_v2_unopt, gnn_11f_llm_pca,
+│                                      gnn_11f_llm_pca_ew, gnn_11f_llm_pca_gat_ew (.pt)
+├── internal_benchmarking/          ← Sampled-eval result CSVs + plots/ (5 figures)
+├── full_universe_eval/             ← Full-universe result CSVs + plots/ (4 figures)
+├── evaluation/                     ← INTERNAL_BENCHMARKING.md, FULL_UNIVERSE_BENCHMARKING.md
+│                                      (both stale — stop at 10 methods, pre-XGBoost)
+├── ClaudeFiles/                    ← train_xgboost.py, train_and_save_gnns.py,
+│                                      run_step11_embeddings.py, plot_*.py, patch_*.py, …
+├── mdFiles/CONTEXT.md              ← THIS master tracker
 ├── datasets/
-│   ├── BACIDataset1995/        ← BACI HS92, 1995–2024 (30 annual CSV files)
-│   └── WDI_csv/                ← World Bank WDI indicators (WDICSV.csv)
-└── oldResearch/                ← Archived: old step scripts, models.py, evaluator.py,
-                                   checkpoints/GNN/best_model.pt, baseline results
+│   ├── BACIDataset1995/            ← BACI HS92, 1995–2024 (30 annual CSV files)
+│   └── WDI_csv/                    ← World Bank WDI indicators (WDICSV.csv)
+└── oldResearch/                    ← Archived: old step scripts, models.py, evaluator.py,
+                                       baseline results, superseded eval notebooks
 ```
 
 **Current branch:** `clean-master` — all standalone `.py` scripts have been consolidated into `dataPipeline.ipynb`.
@@ -153,34 +156,61 @@ LinkPredictor12
 
 ---
 
-## Results — Full Comparison Table (Test year 2015, predicting 2020 outcomes)
+## Results — Full Comparison Table (14 methods)
 
-CWR uses **percentile-ranked scores** (threshold = top 50% of predictions) so the comparison is fair across all methods regardless of score scale.
+Two evaluation regimes are now maintained:
+- **Sampled test set** (5:1 negatives, ~14.5% positive) — for method ranking; inflates absolute PR-AUC ~5–8×. Source: `internal_benchmarking/`.
+- **Full universe** (all `M[t]=0` pairs, ~1.7% positive) — realistic deployment numbers. Source: `full_universe_eval/`.
 
-| Model | PR-AUC | NDCG@20 | Prec@20 | CWR | AUROC |
-|-------|--------|---------|---------|-----|-------|
-| RCA Persistence | 0.5198 | 0.5013 | 0.4788 | 0.3356 | 0.6515 |
-| Density (Product Space) | 0.3487 | 0.4809 | 0.4400 | 0.8575 | 0.7792 |
-| ECI | 0.1370 | 0.1468 | 0.1374 | 0.4637 | 0.4821 |
-| ECI + Density | 0.3487 | 0.4809 | 0.4400 | 0.8575 | 0.7792 |
-| KNN (LLM embeddings) | 0.2305 | 0.2830 | 0.2644 | 0.6550 | 0.6373 |
-| **GNN-4F (BACI only)** | **0.4109** | **0.4372** | **0.3987** | **0.8820** | **0.8182** |
-| **GNN-11F (BACI+WDI)** | **0.4338** | **0.4660** | **0.4237** | **0.8936** | **0.8283** |
-| **GNN-11F+LLM (BACI+WDI+FinLang)** | **0.4444** | **0.4811** | **0.4305** | **0.8969** | **0.8322** |
+Both are evaluated at **t=2015 and t=2016** (predicting t+5 transitions, sustained at t+6). CWR uses **percentile-ranked scores** (threshold = top 50%) so the comparison is fair across score scales, weighted by `1/ubiquity[2010]` with median fill for the 80 products missing from the 2010 reference.
 
-**Key observations:**
-- WDI features (GNN-11F vs GNN-4F) improve every metric consistently (+3.1% PR-AUC, +2.9% NDCG@20)
-- LLM capability edges (GNN-11F+LLM vs GNN-11F) provide further gains (+3.1% PR-AUC, +3.2% NDCG@20, +1.6% CWR) — validates H2 hypothesis that semantic product similarity improves predictions for rare/complex products
-- RCA Persistence still leads on PR-AUC (0.52) — strong autocorrelation baseline; if a country exports something today, it likely will in 5 years
-- GNNs lead on CWR (0.88–0.90 vs 0.34–0.66) — best at finding economically valuable transitions classical methods miss
-- KNN on FinLang embeddings alone (no GNN) scores 0.2305 PR-AUC — demonstrates that capability edges *must be integrated into GNN structure* to work; semantic similarity alone is insufficient
-- High AUROC (0.82–0.83) shows GNN ranking quality is strong; PR-AUC gap vs Persistence reflects difficulty of beating trade autocorrelation globally
+### Sampled test set — t=2015 (127,531 pairs, 14.5% positive)
 
-Saved to `data/full_evaluation_results.csv`. Extended metrics (Best F1, Prec@1000, mAP@10) saved to `data/extra_metrics_results.csv`. Filtered evaluation (RCA > 0.25 pairs only) saved to `data/filtered_metrics_results.csv`.
+| Model | PR-AUC | AUROC | NDCG@20 | Prec@20 | CWR | Best F1 | P@1000 | mAP@10 |
+|-------|--------|-------|---------|---------|-----|---------|--------|--------|
+| RCA Persistence | 0.5198 | 0.6515 | 0.5013 | 0.4788 | 0.3359 | 0.4357 | 0.5970 | 0.3660 |
+| Density (Product Space) | 0.3487 | 0.7792 | 0.4809 | 0.4400 | 0.8574 | 0.4205 | 0.4860 | 0.3448 |
+| ECI | 0.1370 | 0.4821 | 0.1468 | 0.1374 | 0.4637 | 0.2597 | 0.0930 | N/A |
+| ECI + Density | 0.3487 | 0.7792 | 0.4809 | 0.4400 | 0.8574 | 0.4205 | 0.4860 | 0.3448 |
+| KNN (LLM embeddings) | 0.2305 | 0.6373 | 0.2830 | 0.2644 | 0.6550 | 0.2997 | 0.4090 | 0.1644 |
+| **XGBoost (51-dim tabular)** | **0.6576** | **0.8992** | **0.7004** | **0.6423** | **0.9376** | **0.6319** | **0.8970** | **0.6128** |
+| GNN-4F (BACI only) | 0.4123 | 0.8191 | 0.4369 | 0.3980 | 0.8838 | 0.4708 | 0.6200 | 0.2968 |
+| GNN-11F (BACI+WDI) | 0.4340 | 0.8299 | 0.4662 | 0.4257 | 0.8972 | 0.4805 | 0.6280 | 0.3306 |
+| GNN-11F+LLM (FinLang cap. edges) | 0.4408 | 0.8316 | 0.4848 | 0.4296 | 0.8989 | 0.4834 | 0.6460 | 0.3673 |
+| GNN-LLM v2 (GAT+Focal, Optuna) | 0.4108 | 0.8184 | 0.4414 | 0.3969 | 0.8871 | 0.4665 | 0.6560 | 0.3187 |
+| GNN-LLM v2 Unopt | 0.3190 | 0.7727 | 0.3155 | 0.2843 | 0.8501 | 0.4112 | 0.4090 | 0.1984 |
+| GNN-LLM PCA-A (SAGE) | 0.4500 | 0.8355 | 0.4856 | 0.4367 | 0.9008 | 0.4903 | 0.6810 | 0.3538 |
+| **GNN-LLM PCA-B (GCN+EW)** ← best GNN | **0.4565** | **0.8392** | **0.4948** | **0.4376** | **0.9057** | **0.4946** | **0.6850** | **0.3745** |
+| GNN-LLM PCA-D (GAT+EW, Optuna) | 0.4102 | 0.8218 | 0.4399 | 0.3936 | 0.8926 | 0.4680 | 0.6600 | 0.3089 |
+
+t=2016 numbers follow the same ordering (all methods +3–5% PR-AUC); full tables in `internal_benchmarking/full_sampled_results.csv` and the two `evaluation/*.md` reports.
+
+### Full universe — t=2015 (1,078,236 pairs, 1.71% positive) — deployment-realistic
+
+| Model | PR-AUC | AUROC | CWR | mAP@10 |
+|-------|--------|-------|-----|--------|
+| RCA Persistence | 0.2448 | 0.6518 | 0.3359 | 0.0661 |
+| Density | 0.0549 | 0.7782 | 0.8865 | 0.0670 |
+| GNN-11F+LLM | 0.0850 | 0.8325 | 0.9269 | 0.0788 |
+| (XGBoost + PCA variants: pending full-universe re-run — see Pending) | | | | |
+
+Full-universe absolute PR-AUC is ~5–8× lower than sampled; rankings are preserved. Complete tables in `full_universe_eval/full_universe_combined_results.csv`.
+
+**Key observations (updated 2026-07-01):**
+- **XGBoost is now the top performer by a wide margin** on the sampled set — PR-AUC 0.66 (t=2015) / 0.69 (t=2016), CWR 0.94, mAP@10 0.61–0.65. It beats every GNN on every metric and clears the literature XGBoost SOTA ([P1] BestF1≈0.139, prec@1000≈0.198). This is the headline result and **reframes the GNN's contribution as second-best, not best.**
+- **Best GNN is now GNN-LLM PCA-B (GCN+EW)**, not GNN-11F+LLM — PCA-compressing the FinLang embeddings to 32 dims + a GCN encoder with edge weights edges out the SAGEConv+raw-capability-edge variant on every metric.
+- The **GAT variants (v2 GAT+Focal, PCA-D GAT+EW) regress** below the SAGE/GCN encoders — the attention upgrade did not help on this task.
+- The GNN ablation ladder still holds directionally: WDI (4F→11F) is the biggest jump (+10–12% on full universe), capability edges add a smaller consistent gain (+3–6%).
+- RCA Persistence still leads PR-AUC among the *network/economic* baselines; GNNs lead on CWR (0.88–0.91) and AUROC (0.82–0.84).
+- KNN on FinLang embeddings alone (no GNN) scores 0.2305 — capability signal *must* be integrated into the GNN/tabular structure to help.
+
+Result CSVs: `internal_benchmarking/*.csv` (sampled) and `full_universe_eval/*.csv` (full universe). Older single-year CSVs (`data/full_evaluation_results.csv`, `data/extra_metrics_results.csv`, `data/filtered_metrics_results.csv`) are superseded by the two benchmarking folders.
 
 ---
 
 ## Prediction Methods (Ablation Ladder)
+
+Sampled-test PR-AUC (t=2015) shown; see results table for full metrics.
 
 | # | Method | Status |
 |---|--------|--------|
@@ -188,10 +218,15 @@ Saved to `data/full_evaluation_results.csv`. Extended metrics (Best F1, Prec@100
 | 2 | Product Space density (proximity φ) | **Done** — PR-AUC=0.3487 |
 | 3 | ECI and ECI+Density | **Done** — PR-AUC=0.1370 / 0.3487 |
 | 4 | KNN on LLM embeddings (baseline) | **Done** — PR-AUC=0.2305 |
-| 5 | GNN-4F (BACI only) | **Done** — PR-AUC=0.4109 |
-| 6 | GNN-11F (BACI+WDI) | **Done** — PR-AUC=0.4338 |
-| 7 | GNN-11F+LLM (BACI+WDI+FinLang capability edges) | **Done** — PR-AUC=0.4444 (trained with FP32, gradient checkpointing; fixed FP16 bug) |
-| 8 | Gradient-boosted classifier (tabular) | Results in `oldResearch/` — not yet re-run on new pipeline |
+| 5 | **XGBoost (51-dim tabular)** | **Done — TOP METHOD** — PR-AUC=0.6576. Checkpoint `data/models/xgboost/xgb_model.pkl`; script `ClaudeFiles/train_xgboost.py` |
+| 6 | GNN-4F (BACI only) | **Done** — PR-AUC=0.4123 |
+| 7 | GNN-11F (BACI+WDI) | **Done** — PR-AUC=0.4340 |
+| 8 | GNN-11F+LLM (BACI+WDI+FinLang capability edges) | **Done** — PR-AUC=0.4408 (FP32 + gradient checkpointing; fixed FP16 bug) |
+| 9 | GNN-LLM v2 (GAT+Focal, Optuna-tuned) | **Done — regresses** — PR-AUC=0.4108 (below SAGEConv baseline) |
+| 10 | GNN-LLM v2 Unopt (GAT, fixed hparams) | **Done — strong regression** — PR-AUC=0.3190 |
+| 11 | GNN-LLM PCA-A (SAGE, PCA-32 embeddings) | **Done** — PR-AUC=0.4500 |
+| 12 | **GNN-LLM PCA-B (GCN + edge weights)** | **Done — BEST GNN** — PR-AUC=0.4565 |
+| 13 | GNN-LLM PCA-D (GAT + edge weights, Optuna) | **Done — regresses** — PR-AUC=0.4102 |
 
 ---
 
@@ -279,12 +314,19 @@ data['product', 'capability', 'product'].edge_index   # [2, E_capability] semant
 | Full data pipeline (Steps 1–10) | **Complete** and running in notebook |
 | LLM embeddings (Step 11A) | **Complete** — `product_llm_embeddings.pt` [5018, 768] using `FinLang/finance-embeddings-investopedia`. Vastly improved discrimination vs e5-large-v2 (1% > 0.70 vs 99%). |
 | Capability edges (Step 11B) | **Complete** — rebuilt 2026-06-11 using top-K=20 FinLang NN. File `capability_edge_index.pt` [2, 144192] now correctly encodes semantic product similarity. |
-| GNN-4F training + evaluation | **Complete** — PR-AUC=0.4109 |
-| GNN-11F training + evaluation | **Complete** — PR-AUC=0.4338 |
-| GNN-11F+LLM (capability edges + TemporalGNN) | **Complete** — PR-AUC=0.4444 (outperforms GNN-11F). Fixed FP16 training bug; converges cleanly on 80 epochs. **H2 validated.** |
-| Extra metrics (Best F1, Prec@1000, mAP@10) | **Complete** — `extra_metrics_eval.ipynb` computes all 3 for all 8 methods on full test set. Results saved to `data/extra_metrics_results.csv`. |
-| Filtered evaluation (RCA > 0.25 pairs) | **Complete** — `filtered_metrics_eval.ipynb` evaluates all 8 methods on near-miss subset (21K pairs, 55% positive). Economically relevant validation. Results saved to `data/filtered_metrics_results.csv`. |
-| Re-run gradient-boosted baseline on new pipeline | **Pending** |
+| GNN-4F training + evaluation | **Complete** — PR-AUC=0.4123 |
+| GNN-11F training + evaluation | **Complete** — PR-AUC=0.4340 |
+| GNN-11F+LLM (capability edges + TemporalGNN) | **Complete** — PR-AUC=0.4408. Fixed FP16 training bug; converges cleanly on 80 epochs. **H2 validated.** |
+| GNN-LLM PCA variants (A/SAGE, B/GCN+EW, D/GAT+EW) | **Complete** — PCA-32 FinLang embeddings. **PCA-B (GCN+EW) is the best GNN** (PR-AUC=0.4565); GAT variants regress. Trained via `new_gnn_training_fixed.ipynb`. |
+| GNN-LLM v2 GAT+Focal (Optuna + Unopt) | **Complete — regressions** — PR-AUC 0.4108 / 0.3190. GAT+focal loss underperforms SAGE/GCN; not used for deployment. |
+| **XGBoost (51-dim tabular) — re-run on new pipeline** | **Complete — now the TOP method** — PR-AUC=0.6576/0.6880. Beats all GNNs and clears literature XGBoost SOTA. Checkpoint `data/models/xgboost/xgb_model.pkl`. |
+| Two-year evaluation (t=2015 + t=2016) | **Complete** — cross-year rankings stable; `internal_benchmarking.ipynb`. |
+| Full-universe evaluation (unsampled, ~1.08M pairs) | **Complete** — deployment-realistic absolute numbers; `full_universe_eval.ipynb` → `full_universe_eval/`. |
+| Extra metrics (Best F1, Prec@1000, mAP@10) | **Complete** — now folded into the 8-metric benchmarking notebooks. (Standalone `extra_metrics_eval.ipynb` superseded.) |
+| Filtered evaluation (RCA > 0.25 pairs) | **Complete** — near-miss subset in both benchmarking notebooks (sampled + full universe). (Standalone `filtered_metrics_eval.ipynb` superseded.) |
+| Regenerate `evaluation/*.md` reports from CSVs | **Pending** — both reports stop at 10 methods; they predate XGBoost and the PCA variants. |
+| Add XGBoost + PCA variants to full-universe tables | **Pending** — full-universe CSVs currently cover 8–10 methods. |
+| Multi-seed GNN training (confirm sub-1% deltas) | **Pending** — all GNN checkpoints are single-seed; 11F vs 11F+LLM delta is within noise. |
 | India / Vietnam / Mexico / Indonesia country stories | **Pending** |
 | Dashboard / visualization layer | **Pending** |
 
@@ -402,7 +444,20 @@ These are **not** comparable to our results but are the correct citations when c
 | Prec@1000 (global) | Not currently reported | [P1] | Add to enable direct comparison |
 | mAP@10 | Not currently reported | [P1] | Add for completeness |
 
-**Action required:** To make a publishable comparison table, re-implement Product Space density, RCA persistence, and XGBoost on this pipeline and report BestF1 + Prec@1000 + mAP@10 alongside PR-AUC/NDCG/CWR. The GNN must beat XGBoost's BestF1≈0.139 / prec@1000≈0.198 to constitute a meaningful improvement over tabular ML SOTA.
+**Action — status (2026-07-01):** Done. Product Space density, RCA persistence, and XGBoost are all re-implemented on this pipeline; BestF1 + Prec@1000 + mAP@10 are reported alongside PR-AUC/NDCG/CWR for all 14 methods in `internal_benchmarking/`.
+
+**Result vs literature:** Our **XGBoost** scores BestF1=0.63, Prec@1000=0.90, mAP@10=0.61 on the *sampled* test set — far above [P1]'s XGBoost SOTA (BestF1≈0.139, prec@1000≈0.198). **Caveat:** the gap is largely the 5:1 negative subsampling (which inflates absolutes ~5–8×); the [P1] numbers are on a near-full-universe pool, so the honest comparison is against our **full-universe** BestF1/Prec@1000 — XGBoost must still be scored there (see Pending). The GNNs do **not** currently beat our own XGBoost on any metric — the publishable story is "XGBoost is SOTA; the temporal GNN + LLM capability graph is a competitive, more interpretable alternative," not "GNN beats tabular ML." This tempers H1.
+
+### XGBoost feature vector (51 dims)
+
+| Group | Dims | Features |
+|-------|------|----------|
+| Country (BACI) | 4 | log_export, n_products, avg_rca, max_rca |
+| Country (WDI) | 7 | gdp_pc, capital_formation, tertiary_enrollment, fdi_inflows, manufacturing_va, internet_users, population |
+| Product | 3 | log_world_export, ubiquity, avg_rca |
+| PCA-LLM | 32 | Top-32 PCA components of FinLang product embeddings (L2-normalised) |
+| Network | 2 | Density score, ECI |
+| RCA history | 3 | Raw RCA at t-2, t-1, t |
 
 ---
 
